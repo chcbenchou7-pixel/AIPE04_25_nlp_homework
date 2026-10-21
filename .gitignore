@@ -1,0 +1,20 @@
+# 作業二：基礎模型權重不上傳（需自行下載）
+cases/llm_finetune_mlx/models/
+
+# 作業二：中間 LoRA 快照（保留最終 adapters.safetensors）
+cases/llm_finetune_mlx/outputs/adapters/0000*_adapters.safetensors
+
+# 作業一：訓練切分資料（prepare_emotion_data.py 可重新產生）
+cases/bert_finetune/data/
+# 作業一：training 快取 checkpoint（提交最終模型即可）
+cases/bert_finetune/output/bert_emotion_clf/checkpoint-*/
+
+# 共通
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+app.log
+.vscode/

@@ -1,0 +1,36 @@
+nltk==3.10.3
+numpy==2.5.2
+pandas==3.0.5
+svgling==0.5.0
+scikit-learn==1.9.0
+jieba==0.42.1
+wordcloud==1.9.6
+OpenCC==1.4.2
+gensim==4.4.0
+hmmlearn==0.3.3
+spacy>=3.8,<3.9
+google-genai==2.24.0
+requests==2.34.2
+beautifulsoup4==4.15.0
+lxml==6.1.3
+
+# 作業一：BERT 情緒分類
+torch==2.14.1
+transformers==5.17.0
+datasets==5.0.1
+accelerate==1.15.0
+matplotlib==3.11.1
+
+# 作業二：MLX LoRA 微調
+# 注意：Qwen3.5 (model_type "qwen3_5_text") 需要 mlx-lm >= 0.32，
+# 且首次使用需在 site-packages/mlx_lm/utils.py 的 MODEL_REMAPPING 加上
+# "qwen3_5_text": "qwen3_5"（詳見 cases/llm_finetune_mlx/README.md）。
+mlx-lm==0.32.2
+
+# 作業三：RAG（mtplx OpenAI 相容 API + FAISS）
+openai==3.35.1
+python-dotenv==1.2.4
+faiss-cpu==1.15.1
+Flask==3.1.3
+
+huggingface_hub==1.23.0
