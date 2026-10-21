@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>健康諮詢小幫手（RAG）</title>
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+  />
+  <style>
+    body {
+      background: #f4f7f6;
+    }
+    .chat-container {
+      max-width: 860px;
+      margin: 20px auto 60px;
+    }
+    .chat-messages {
+      border: 1px solid #d8e2de;
+      border-radius: 12px;
+      background: #fff;
+      height: 55vh;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .message {
+      margin-bottom: 14px;
+      display: flex;
+    }
+    .message.user {
+      justify-content: flex-end;
+    }
+    .message .bubble {
+      max-width: 78%;
+      border-radius: 12px;
+      padding: 10px 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .message.user .bubble {
+      background: #d1e7ff;
+      color: #0b3c5d;
+    }
+    .message.bot .bubble {
+      background: #eaf7ef;
+      color: #083b26;
+    }
+    .sources {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #fff8ee;
+      border: 1px dashed #d8c39a;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .sources a {
+      word-break: break-all;
+    }
+    .typing {
+      color: #777;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <h3 class="text-center mb-1">🩺 健康諮詢小幫手（RAG + 地端模型）</h3>
+    <p class="text-center text-secondary mb-3">
+      基和信息：健康醫療網大腸癌分類新聞 + FAISS 向量索引 + mtplx 地端模型
+    </p>
+
+    <div class="d-flex align-items-center gap-3 mb-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="retrieve-multi" checked />
+        <label class="form-check-label" for="retrieve-multi">
+          多輪對話時，於後續的問題也進行檢索（checkbox 決定）
+        </label>
+      </div>
+      <button class="btn btn-outline-success ms-auto" id="btn-summary">
+        重點整理
+      </button>
+    </div>
+
+    <div class="chat-messages" id="messages">
+      <div class="message bot">
+        <div class="bubble">
+          我是健康諮詢小幫手，請問您想詢問大腸癌方面的健康問題嗎？例如：「有人用 AI 來偵測大腸瘜肉嗎？」
+        </div>
+      </div>
+    </div>
+
+    <div class="input-group mt-3">
+      <input
+        id="question-input"
+        class="form-control"
+        placeholder="請輸入您的健康諮詢問題..."
+        autocomplete="off"
+      />
+      <button class="btn btn-primary px-4" id="btn-ask">送出</button>
+    </div>
+    <p id="status-line" class="small text-secondary mt-2"></p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const sessionId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+    const messagesEl = document.getElementById("messages");
+    const inputEl = document.getElementById("question-input");
+    const retrieveEl = document.getElementById("retrieve-multi");
+    const statusEl = document.getElementById("status-line");
+
+    function addMessage(role, text) {
+      const wrap = document.createElement("div");
+      wrap.className = "message " + (role === "user" ? "user" : "bot");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      messagesEl.appendChild(wrap);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return bubble;
+    }
+
+    function addSources(sources) {
+      if (!sources || sources.length === 0) return;
+      const last = messagesEl.lastElementChild.querySelector(".bubble");
+      const box = document.createElement("div");
+      box.className = "sources";
+      let html = "<strong>📎 檢索來源：</strong><br/>";
+      sources.forEach((s, i) => {
+        html +=
+          `${i + 1}. ${s.title}<br/>` +
+          `&nbsp;&nbsp;連結：<a href="${s.link}" target="_blank" rel="noreferrer">${s.link ||
+            "（無）"}</a><br/>` +
+          `&nbsp;&nbsp;文章新增時間：${s.created_at}<br/>`;
+      });
+      box.innerHTML = html;
+      last.appendChild(box);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function ask(question) {
+      addMessage("user", question);
+      statusEl.textContent = "檢索新聞資料與呼叫地端模型中（mtplx）...";
+      try {
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": sessionId,
+          },
+          body: JSON.stringify({
+            question,
+            retrieve: retrieveEl.checked,
+          }),
+        });
+        const data = await res.json();
+        if (res.status !== 200) {
+          addMessage("bot", data.error || "發生錯誤，請再試一次。");
+          return;
+        }
+        addMessage("bot", data.full_answer || "（沒有回覆）");
+      } catch (err) {
+        addMessage("bot", "呼叫失敗：" + err);
+      } finally {
+        statusEl.textContent = "";
+      }
+    }
+
+    async function summarize() {
+      statusEl.textContent = "整理重點中...";
+      try {
+        const res = await fetch("/summarize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": sessionId,
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        addMessage("user", "（請把我剛才詢問的問題，整理成重點）");
+        addMessage("bot", data.full_answer || data.error || "（沒有回覆）");
+      } catch (err) {
+        addMessage("bot", "整理失敗：" + err);
+      } finally {
+        statusEl.textContent = "";
+      }
+    }
+
+    document.getElementById("btn-ask").addEventListener("click", () => {
+      const q = inputEl.value.trim();
+      if (!q) return;
+      inputEl.value = "";
+      ask(q);
+    });
+
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const q = inputEl.value.trim();
+        if (!q) return;
+        inputEl.value = "";
+        ask(q);
+      }
+    });
+
+    document.getElementById("btn-summary").addEventListener("click", summarize);
+  </script>
+</body>
+</html>
